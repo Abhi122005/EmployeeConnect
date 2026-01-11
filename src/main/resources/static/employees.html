@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EmployeeConnect | Employee Management</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f9fafb;
+            --white: #ffffff;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --radius: 12px;
+        }
+        body {
+            font-family: "Inter", system-ui, sans-serif;
+        }
+        /* Sidebar styles */
+        .sidebar {
+            width: 240px;
+            background: var(--white);
+            border-right: 1px solid #e5e7eb;
+        }
+        .logo {
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--primary);
+        }
+        .nav a {
+            transition: background 0.2s, color 0.2s;
+        }
+        .nav a.active,
+        .nav a:hover {
+            background: var(--bg);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .logout-btn {
+            transition: background 0.2s, color 0.2s, border-color 0.2s;
+            border: 2px solid #ef4444;
+        }
+        .logout-btn:hover {
+            background-color: #fecaca;
+        }
+        /* Modal styles */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        /* Toast Notification styles */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(150%);
+            background-color: var(--text);
+            color: var(--white);
+            padding: 12px 20px;
+            border-radius: var(--radius);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease-in-out;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+        .toast.success { background-color: #22c55e; }
+        .toast.error { background-color: #ef4444; }
+    </style>
+</head>
+<body class="bg-gray-50 flex min-h-screen">
+
+<aside class="sidebar p-6 flex flex-col gap-6">
+    <div class="logo">EmployeeConnect</div>
+    <nav class="nav flex flex-col gap-3">
+        <a href="admin-dashboard.html" class="flex items-center gap-3 p-3 rounded-xl text-gray-500">Admin Dashboard</a>
+        <a href="employees.html" class="active flex items-center gap-3 p-3 rounded-xl text-gray-500">Employees</a>
+        <a href="department.html" class="flex items-center gap-3 p-3 rounded-xl text-gray-500">Departments</a>
+        <a href="search.html" class="flex items-center gap-3 p-3 rounded-xl text-gray-500">Search & Filter</a>
+        <a href="admin-portal.html" class="flex items-center gap-3 p-3 rounded-xl text-gray-500">My Profile</a>
+    </nav>
+    <button id="logout-btn" class="logout-btn mt-auto w-full flex items-center justify-center gap-3 p-3 rounded-xl font-semibold text-red-500">
+        <i class="fa-solid fa-right-from-bracket"></i>
+        Logout
+    </button>
+</aside>
+
+<main class="flex-1 p-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold">Employee Management</h1>
+        <div class="flex gap-2">
+            <button id="add-btn" class="bg-blue-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 font-medium hover:bg-blue-700 transition">
+                <i class="fas fa-plus"></i> Add Employee
+            </button>
+            <button id="update-btn" disabled class="bg-gray-200 text-gray-400 rounded-lg px-4 py-2 flex items-center gap-2 font-medium transition cursor-not-allowed">
+                <i class="fas fa-pen"></i> Update
+            </button>
+            <button id="delete-btn" disabled class="bg-gray-200 text-gray-400 rounded-lg px-4 py-2 flex items-center gap-2 font-medium transition cursor-not-allowed">
+                <i class="fas fa-trash"></i> Delete
+            </button>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg p-6 shadow-sm overflow-x-auto">
+        <table class="w-full text-left table-auto">
+            <thead>
+            <tr class="bg-gray-100 border-b border-gray-200">
+                <th class="p-4 w-12 rounded-tl-lg">
+                    <input type="checkbox" id="select-all-checkbox" class="form-checkbox h-5 w-5 rounded text-blue-600 focus:ring-blue-500"/>
+                </th>
+                <th class="p-4">Employee ID</th>
+                <th class="p-4">Full Name</th>
+                <th class="p-4">Role</th>
+                <th class="p-4">Department</th>
+                <th class="p-4">Salary</th>
+                <th class="p-4 rounded-tr-lg">Status</th>
+            </tr>
+            </thead>
+            <tbody id="employee-table-body">
+            <!-- Employee rows will be inserted here by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+</main>
+
+<!-- Modals -->
+<div id="add-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center">
+    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg relative">
+        <button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+        <h3 class="text-2xl font-semibold mb-6">Add New Employee</h3>
+        <form id="add-form" class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">First Name</label>
+                    <input type="text" id="add-first-name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Last Name</label>
+                    <input type="text" id="add-last-name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Employee ID</label>
+                <input type="text" id="add-employee-id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Role</label>
+                <input type="text" id="add-role" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Department</label>
+                <select id="add-department" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Salary (USD)</label>
+                    <input type="number" step="0.01" id="add-salary" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Experience (Years)</label>
+                    <input type="number" id="add-experience-years" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Joining Date</label>
+                <input type="date" id="add-joining-date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="add-currently-working" checked class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                <label for="add-currently-working" class="ml-2 block text-sm text-gray-900">Currently Working</label>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button type="button" class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Cancel</button>
+                <button type="submit" class="submit-btn bg-blue-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-blue-700 transition flex items-center justify-center w-36">
+                    <span class="btn-text">Add Employee</span>
+                    <i class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="update-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center">
+    <div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg relative">
+        <button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+        <h3 class="text-2xl font-semibold mb-6">Update Employee</h3>
+        <form id="update-form" class="space-y-4">
+            <input type="hidden" id="update-id" />
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">First Name</label>
+                    <input type="text" id="update-first-name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Last Name</label>
+                    <input type="text" id="update-last-name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Employee ID</label>
+                <input type="text" id="update-employee-id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Role</label>
+                <input type="text" id="update-role" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Department</label>
+                <select id="update-department" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Salary (USD)</label>
+                    <input type="number" step="0.01" id="update-salary" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Experience (Years)</label>
+                    <input type="number" id="update-experience-years" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Joining Date</label>
+                    <input type="date" id="update-joining-date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Relieving Date</label>
+                    <input type="date" id="update-relieving-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                </div>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="update-currently-working" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                <label for="update-currently-working" class="ml-2 block text-sm text-gray-900">Currently Working</label>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button type="button" class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Cancel</button>
+                <button type="submit" class="submit-btn bg-blue-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-blue-700 transition flex items-center justify-center w-40">
+                    <span class="btn-text">Update Employee</span>
+                    <i class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="delete-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center">
+    <div class="modal-content max-w-sm text-center bg-white p-8 rounded-lg shadow-xl relative">
+        <button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+        <h3 class="text-xl font-semibold mb-2">Confirm Deletion</h3>
+        <p class="text-gray-600 mb-6">Are you sure you want to deactivate the selected employee(s)?</p>
+        <div class="flex justify-center gap-4">
+            <button id="confirm-delete-btn" class="submit-btn bg-red-500 text-white rounded-lg px-4 py-2 font-medium hover:bg-red-600 transition w-24 flex justify-center items-center">
+                <span class="btn-text">Delete</span>
+                <i class="fas fa-spinner fa-spin ml-2 hidden"></i>
+            </button>
+            <button class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification Placeholder -->
+<div id="toast" class="toast">
+    <span id="toast-icon"></span>
+    <span id="toast-message"></span>
+</div>
+
+<script>
+    const API_BASE_URL = "http://localhost:8080/api";
+
+    // --- Toast Notification Logic ---
+    const toast = {
+        element: document.getElementById('toast'),
+        message: document.getElementById('toast-message'),
+        icon: document.getElementById('toast-icon'),
+        show(message, isSuccess = true) {
+            this.message.textContent = message;
+            this.element.className = 'toast show';
+            if (isSuccess) {
+                this.element.classList.add('success');
+                this.icon.innerHTML = '<i class="fas fa-check-circle"></i>';
+            } else {
+                this.element.classList.add('error');
+                this.icon.innerHTML = '<i class="fas fa-times-circle"></i>';
+            }
+            setTimeout(() => {
+                this.element.classList.remove('show');
+            }, 3000);
+        }
+    };
+
+    // --- App Initialization ---
+    document.addEventListener('DOMContentLoaded', async () => {
+        await initializePage();
+    });
+
+    async function initializePage() {
+        if (!sessionStorage.getItem('loggedInAdmin')) {
+            toast.show("You are not logged in. Redirecting...", false);
+            setTimeout(() => window.location.href = "admin-login.html", 1500);
+            return;
+        }
+        await populateDepartmentDropdowns();
+        await fetchAndRenderEmployees();
+    }
+
+    // --- API & Rendering Logic ---
+    async function fetchAndRenderEmployees() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/employees/all`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const employees = await response.json();
+            renderEmployees(employees);
+        } catch (error) {
+            console.error("Error fetching employees:", error);
+            document.getElementById("employee-table-body").innerHTML = `<tr><td colspan="7" class="text-center p-4 text-red-500">Could not load employee data.</td></tr>`;
+        }
+    }
+
+    function renderEmployees(employees) {
+        const employeeTableBody = document.getElementById("employee-table-body");
+        employeeTableBody.innerHTML = "";
+        if (!employees || employees.length === 0) {
+            employeeTableBody.innerHTML = `<tr><td colspan="7" class="text-center p-4 text-gray-500">No employees found.</td></tr>`;
+            return;
+        }
+
+        employees.forEach((employee) => {
+            const statusClass = employee.currentlyWorking ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
+            const row = `
+                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition">
+                        <td class="p-4"><input type="checkbox" data-id="${employee.id}" class="employee-checkbox form-checkbox h-5 w-5 rounded text-blue-600 focus:ring-blue-500"/></td>
+                        <td class="p-4 font-mono text-sm">${employee.employeeId}</td>
+                        <td class="p-4 font-medium">${employee.fullName}</td>
+                        <td class="p-4">${employee.role}</td>
+                        <td class="p-4">${employee.departmentName || 'N/A'}</td>
+                        <td class="p-4">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(employee.salary)}</td>
+                        <td class="p-4"><span class="${statusClass} text-xs font-medium px-2.5 py-0.5 rounded-full">${employee.currentlyWorking ? 'Active' : 'Inactive'}</span></td>
+                    </tr>
+                `;
+            employeeTableBody.innerHTML += row;
+        });
+        attachCheckboxListeners();
+        updateButtonStates();
+    }
+
+    async function populateDepartmentDropdowns() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/departments/all`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const departments = await response.json();
+            const addSelect = document.getElementById('add-department');
+            const updateSelect = document.getElementById('update-department');
+            addSelect.innerHTML = '<option value="">Select Department</option>';
+            updateSelect.innerHTML = '<option value="">Select Department</option>';
+            departments.forEach(dept => {
+                const option = `<option value="${dept.id}">${dept.name}</option>`;
+                addSelect.innerHTML += option;
+                updateSelect.innerHTML += option;
+            });
+        } catch (error) {
+            console.error("Error populating departments:", error);
+            toast.show("Could not load departments.", false);
+        }
+    }
+
+    // --- UI State & Event Handlers ---
+    function getSelectedEmployeeIds() {
+        return Array.from(document.querySelectorAll(".employee-checkbox:checked")).map(cb => parseInt(cb.dataset.id));
+    }
+
+    function setLoadingState(form, isLoading) {
+        const button = form.querySelector('.submit-btn');
+        const btnText = button.querySelector('.btn-text');
+        const spinner = button.querySelector('i');
+        if (isLoading) {
+            button.disabled = true;
+            btnText.classList.add('hidden');
+            spinner.classList.remove('hidden');
+        } else {
+            button.disabled = false;
+            btnText.classList.remove('hidden');
+            spinner.classList.add('hidden');
+        }
+    }
+
+    function updateButtonStates() {
+        const selectedCount = getSelectedEmployeeIds().length;
+        const updateBtn = document.getElementById('update-btn');
+        const deleteBtn = document.getElementById('delete-btn');
+
+        const inactiveClasses = ["bg-gray-200", "text-gray-400", "cursor-not-allowed"];
+        const updateActiveClasses = ["bg-blue-600", "text-white", "hover:bg-blue-700"];
+        const deleteActiveClasses = ["bg-red-500", "text-white", "hover:bg-red-600"];
+
+        // Reset update button
+        updateBtn.disabled = true;
+        updateBtn.classList.add(...inactiveClasses);
+        updateBtn.classList.remove(...updateActiveClasses);
+
+        // Reset delete button
+        deleteBtn.disabled = true;
+        deleteBtn.classList.add(...inactiveClasses);
+        deleteBtn.classList.remove(...deleteActiveClasses);
+
+        if (selectedCount === 1) {
+            updateBtn.disabled = false;
+            updateBtn.classList.remove(...inactiveClasses);
+            updateBtn.classList.add(...updateActiveClasses);
+        }
+
+        if (selectedCount >= 1) {
+            deleteBtn.disabled = false;
+            deleteBtn.classList.remove(...inactiveClasses);
+            deleteBtn.classList.add(...deleteActiveClasses);
+        }
+    }
+
+    function attachCheckboxListeners() {
+        document.querySelectorAll(".employee-checkbox").forEach(cb => cb.addEventListener("change", updateButtonStates));
+        document.getElementById("select-all-checkbox").addEventListener("change", (e) => {
+            document.querySelectorAll(".employee-checkbox").forEach(cb => cb.checked = e.target.checked);
+            updateButtonStates();
+        });
+    }
+
+    function openModal(id) { document.getElementById(id).style.display = "flex"; }
+    function closeModal(id) { document.getElementById(id).style.display = "none"; }
+
+    // --- Modal & Form Event Listeners ---
+    document.getElementById("add-btn").addEventListener("click", () => openModal("add-modal"));
+    document.getElementById("delete-btn").addEventListener("click", () => openModal("delete-modal"));
+
+    document.querySelectorAll('.modal-close, .modal-cancel-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            closeModal('add-modal');
+            closeModal('update-modal');
+            closeModal('delete-modal');
+        });
+    });
+
+    document.getElementById("add-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        setLoadingState(form, true);
+
+        const newEmployee = {
+            employeeId: document.getElementById("add-employee-id").value,
+            firstName: document.getElementById("add-first-name").value,
+            lastName: document.getElementById("add-last-name").value,
+            role: document.getElementById("add-role").value,
+            salary: parseFloat(document.getElementById("add-salary").value),
+            joiningDate: document.getElementById("add-joining-date").value,
+            currentlyWorking: document.getElementById("add-currently-working").checked,
+            experienceYears: parseInt(document.getElementById("add-experience-years").value),
+            departmentId: parseInt(document.getElementById("add-department").value),
+        };
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/employees`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newEmployee)
+            });
+            if (response.ok) {
+                await fetchAndRenderEmployees();
+                closeModal("add-modal");
+                toast.show("Employee added successfully!");
+                form.reset();
+            } else {
+                const errorData = await response.json();
+                const errorMsg = errorData.errors ? errorData.errors[0].message : JSON.stringify(errorData);
+                toast.show(`Failed to add employee: ${errorMsg}`, false);
+            }
+        } catch (error) {
+            console.error("Error adding employee:", error);
+            toast.show("An error occurred. See console for details.", false);
+        } finally {
+            setLoadingState(form, false);
+        }
+    });
+
+    document.getElementById("update-btn").addEventListener("click", async () => {
+        const selectedId = getSelectedEmployeeIds()[0];
+        if (!selectedId) return;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/employees/${selectedId}`);
+            if (!response.ok) throw new Error('Failed to fetch employee details');
+            const emp = await response.json();
+
+            document.getElementById("update-id").value = emp.id;
+            document.getElementById("update-employee-id").value = emp.employeeId;
+            document.getElementById("update-first-name").value = emp.firstName;
+            document.getElementById("update-last-name").value = emp.lastName;
+            document.getElementById("update-role").value = emp.role;
+            document.getElementById("update-salary").value = emp.salary;
+            document.getElementById("update-experience-years").value = emp.experienceYears;
+            document.getElementById("update-joining-date").value = emp.joiningDate;
+            document.getElementById("update-relieving-date").value = emp.relievingDate || '';
+            document.getElementById("update-currently-working").checked = emp.currentlyWorking;
+            document.getElementById("update-department").value = emp.departmentId;
+
+            openModal("update-modal");
+        } catch (error) {
+            console.error("Error fetching employee for update:", error);
+            toast.show("Could not load employee details for editing.", false);
+        }
+    });
+
+    document.getElementById("update-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        setLoadingState(form, true);
+        const employeeId = document.getElementById("update-id").value;
+        const relievingDateValue = document.getElementById("update-relieving-date").value;
+        const departmentValue = document.getElementById("update-department").value;
+
+        const updatedEmployee = {
+            employeeId: document.getElementById("update-employee-id").value,
+            firstName: document.getElementById("update-first-name").value,
+            lastName: document.getElementById("update-last-name").value,
+            role: document.getElementById("update-role").value,
+            salary: parseFloat(document.getElementById("update-salary").value),
+            joiningDate: document.getElementById("update-joining-date").value,
+            relievingDate: relievingDateValue ? relievingDateValue : null,
+            currentlyWorking: document.getElementById("update-currently-working").checked,
+            experienceYears: parseInt(document.getElementById("update-experience-years").value),
+            departmentId: departmentValue ? parseInt(departmentValue) : null,
+        };
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/employees/${employeeId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedEmployee)
+            });
+            if (response.ok) {
+                await fetchAndRenderEmployees();
+                closeModal("update-modal");
+                toast.show("Employee updated successfully!");
+            } else {
+                const errorData = await response.json();
+                const errorMsg = errorData.errors ? errorData.errors[0].message : JSON.stringify(errorData);
+                toast.show(`Failed to update employee: ${errorMsg}`, false);
+            }
+        } catch (error) {
+            console.error("Error updating employee:", error);
+            toast.show("An error occurred. See console for details.", false);
+        } finally {
+            setLoadingState(form, false);
+        }
+    });
+
+    document.getElementById("confirm-delete-btn").addEventListener("click", async () => {
+        const form = document.getElementById('delete-modal');
+        setLoadingState(form, true);
+        const selectedIds = getSelectedEmployeeIds();
+        if (selectedIds.length === 0) {
+            setLoadingState(form, false);
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/employees/delete-batch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(selectedIds)
+            });
+            if (response.ok) {
+                await fetchAndRenderEmployees();
+                closeModal("delete-modal");
+                toast.show(`Deactivated ${selectedIds.length} employee(s).`);
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to deactivate employee(s).");
+            }
+        } catch (error) {
+            console.error("Error deleting employees:", error);
+            toast.show(error.message, false);
+        } finally {
+            setLoadingState(form, false);
+            updateButtonStates();
+        }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', () => {
+        sessionStorage.removeItem('loggedInAdmin');
+        window.location.href = 'admin-login.html';
+    });
+</script>
+</body>
+</html>
+
+
+

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EmployeeConnect | Search & Filter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f9fafb;
+            --white: #ffffff;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --radius: 12px;
+        }
+        body {
+            font-family: "Inter", system-ui, sans-serif;
+        }
+        /* Sidebar styles */
+        .sidebar {
+            width: 240px;
+            background: var(--white);
+            border-right: 1px solid #e5e7eb;
+        }
+        .logo {
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--primary);
+        }
+        .nav a {
+            transition: background 0.2s, color 0.2s;
+        }
+        .nav a.active,
+        .nav a:hover {
+            background: var(--bg);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .logout-btn {
+            transition: background 0.2s, color 0.2s, border-color 0.2s;
+            border: 2px solid #ef4444;
+        }
+        .logout-btn:hover {
+            background-color: #fecaca;
+        }
+        /* Toast Notification styles */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(150%);
+            background-color: var(--text);
+            color: var(--white);
+            padding: 12px 20px;
+            border-radius: var(--radius);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease-in-out;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+        .toast.success {
+            background-color: #22c55e;
+        }
+        .toast.error {
+            background-color: #ef4444;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 flex min-h-screen">
+<aside class="sidebar p-6 flex flex-col gap-6">
+    <div class="logo">EmployeeConnect</div>
+    <nav class="nav flex flex-col gap-3">
+        <a href="admin-dashboard.html" class="flex items-center gap-3 p-3 rounded-xl text-gray-500">
+            <i class="fas fa-tachometer-alt fa-fw"></i> Admin Dashboard
+        </a>
+        <a href="employees.html" class="flex items-center gap-3 p-3 rounded-xl text-gray-500">
+            <i class="fas fa-users fa-fw"></i> Employees
+        </a>
+        <a href="department.html" class="flex items-center gap-3 p-3 rounded-xl text-gray-500">
+            <i class="fas fa-building fa-fw"></i> Departments
+        </a>
+        <a href="search.html" class="active flex items-center gap-3 p-3 rounded-xl text-gray-500">
+            <i class="fas fa-search fa-fw"></i> Search & Filter
+        </a>
+        <a href="admin-portal.html" class="flex items-center gap-3 p-3 rounded-xl text-gray-500">
+            <i class="fas fa-user-circle fa-fw"></i> My Profile
+        </a>
+    </nav>
+    <button
+            id="logout-btn"
+            class="logout-btn mt-auto w-full flex items-center justify-center gap-3 p-3 rounded-xl font-semibold text-red-500"
+    >
+        <i class="fa-solid fa-right-from-bracket"></i>
+        Logout
+    </button>
+</aside>
+
+<main class="flex-1 p-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold">Employee Search</h1>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="relative md:col-span-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1"
+            >Search by Name or ID</label
+            >
+            <input
+                    id="search-input"
+                    type="text"
+                    placeholder="e.g., John Doe or EMP001"
+                    class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <i
+                    class="fas fa-search absolute left-3 top-9 -translate-y-1/2 text-gray-400"
+            ></i>
+        </div>
+        <div>
+            <label
+                    for="filter-role"
+                    class="block text-sm font-medium text-gray-700 mb-1"
+            >Filter by Role</label
+            >
+            <select
+                    id="filter-role"
+                    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            >
+                <option value="">All Roles</option>
+            </select>
+        </div>
+        <div>
+            <label
+                    for="filter-department"
+                    class="block text-sm font-medium text-gray-700 mb-1"
+            >Filter by Department</label
+            >
+            <select
+                    id="filter-department"
+                    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            >
+                <option value="">All Departments</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg p-6 shadow-sm overflow-x-auto">
+        <table class="w-full text-left table-auto">
+            <thead>
+            <tr class="bg-gray-100 border-b border-gray-200">
+                <th class="p-4 rounded-tl-lg">Employee ID</th>
+                <th class="p-4">Full Name</th>
+                <th class="p-4">Role</th>
+                <th class="p-4">Department</th>
+                <th class="p-4">Salary</th>
+                <th class="p-4 rounded-tr-lg">Status</th>
+            </tr>
+            </thead>
+            <tbody id="employee-table-body">
+            <!-- Search results will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+</main>
+
+<!-- Toast Notification Placeholder -->
+<div id="toast" class="toast">
+    <span id="toast-icon"></span>
+    <span id="toast-message"></span>
+</div>
+
+<script>
+    const API_BASE_URL = "http://localhost:8080/api";
+
+    // --- Toast Notification Logic ---
+    const toast = {
+        element: document.getElementById("toast"),
+        message: document.getElementById("toast-message"),
+        icon: document.getElementById("toast-icon"),
+        show(message, isSuccess = true) {
+            this.message.textContent = message;
+            this.element.className = "toast show";
+            if (isSuccess) {
+                this.element.classList.add("success");
+                this.icon.innerHTML = '<i class="fas fa-check-circle"></i>';
+            } else {
+                this.element.classList.add("error");
+                this.icon.innerHTML = '<i class="fas fa-times-circle"></i>';
+            }
+            setTimeout(() => {
+                this.element.classList.remove("show");
+            }, 3000);
+        },
+    };
+
+    // --- App Initialization ---
+    document.addEventListener("DOMContentLoaded", async () => {
+        await initializePage();
+    });
+
+    async function initializePage() {
+        if (!sessionStorage.getItem("loggedInAdmin")) {
+            toast.show("You are not logged in. Redirecting...", false);
+            setTimeout(() => (window.location.href = "admin-login.html"), 1500);
+            return;
+        }
+        await populateFilters();
+        await performSearch(); // Perform an initial search to show all employees
+
+        // Add event listeners to trigger search on input/change
+        const searchInput = document.getElementById("search-input");
+        const filterRole = document.getElementById("filter-role");
+        const filterDepartment = document.getElementById("filter-department");
+
+        searchInput.addEventListener("input", debounce(performSearch, 300));
+        filterRole.addEventListener("change", performSearch);
+        filterDepartment.addEventListener("change", performSearch);
+    }
+
+    // --- Core Search & Filter Logic ---
+    async function performSearch() {
+        const searchInput = document.getElementById("search-input").value;
+        const role = document.getElementById("filter-role").value;
+        const department = document.getElementById("filter-department").value;
+        const employeeTableBody = document.getElementById("employee-table-body");
+
+        employeeTableBody.innerHTML = `<tr><td colspan="6" class="text-center p-4"><i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i></td></tr>`;
+
+        const params = new URLSearchParams();
+
+        if (searchInput) {
+            if (searchInput.toUpperCase().trim().startsWith('EMP')) {
+                params.append("employeeId", searchInput.trim());
+            } else {
+                params.append("name", searchInput.trim());
+            }
+        }
+
+        if (role) params.append("role", role);
+        if (department) params.append("department", department);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/employees?${params.toString()}`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const page = await response.json();
+            renderEmployees(page.content);
+        } catch (error) {
+            console.error("Error performing search:", error);
+            employeeTableBody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-red-500">Could not perform search.</td></tr>`;
+        }
+    }
+
+    function renderEmployees(employees) {
+        const employeeTableBody = document.getElementById("employee-table-body");
+        employeeTableBody.innerHTML = "";
+        if (!employees || employees.length === 0) {
+            employeeTableBody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-gray-500">No employees found matching your criteria.</td></tr>`;
+            return;
+        }
+
+        employees.forEach((employee) => {
+            const statusClass = employee.currentlyWorking
+                ? "bg-green-100 text-green-800"
+                : "bg-red-100 text-red-800";
+            const row = `
+                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition">
+                        <td class="p-4 font-mono text-sm">${employee.employeeId}</td>
+                        <td class="p-4 font-medium">${employee.fullName}</td>
+                        <td class="p-4">${employee.role}</td>
+                        <td class="p-4">${employee.departmentName || "N/A"}</td>
+                        <td class="p-4">${new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "USD",
+            }).format(employee.salary)}</td>
+                        <td class="p-4"><span class="${statusClass} text-xs font-medium px-2.5 py-0.5 rounded-full">${
+                employee.currentlyWorking ? "Active" : "Inactive"
+            }</span></td>
+                    </tr>
+                `;
+            employeeTableBody.innerHTML += row;
+        });
+    }
+
+    async function populateFilters() {
+        try {
+            // Fetch all employees to get unique roles
+            const empResponse = await fetch(`${API_BASE_URL}/employees/all`);
+            const employees = await empResponse.json();
+            const uniqueRoles = [...new Set(employees.map(emp => emp.role))].sort();
+
+            const roleSelect = document.getElementById('filter-role');
+            uniqueRoles.forEach(role => {
+                roleSelect.innerHTML += `<option value="${role}">${role}</option>`;
+            });
+
+            // Fetch all departments
+            const deptResponse = await fetch(`${API_BASE_URL}/departments/all`);
+            const departments = await deptResponse.json();
+            const departmentSelect = document.getElementById('filter-department');
+            departments.forEach(dept => {
+                departmentSelect.innerHTML += `<option value="${dept.code}">${dept.name}</option>`;
+            });
+
+        } catch (error) {
+            console.error("Error populating filters:", error);
+            toast.show("Could not load filter options.", false);
+        }
+    }
+
+    // --- Utilities ---
+    function debounce(func, delay) {
+        let timeout;
+        return function (...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), delay);
+        };
+    }
+
+    // Logout
+    document.getElementById("logout-btn").addEventListener("click", () => {
+        sessionStorage.removeItem("loggedInAdmin");
+        window.location.href = "index.html";
+    });
+</script>
+</body>
+</html>

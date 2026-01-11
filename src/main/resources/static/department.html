@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EmployeeConnect | Department Management</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f9fafb;
+            --white: #ffffff;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --radius: 12px;
+        }
+        body {
+            font-family: "Inter", system-ui, sans-serif;
+        }
+        /* Sidebar styles */
+        .sidebar {
+            width: 240px;
+            background: var(--white);
+            border-right: 1px solid #e5e7eb;
+        }
+        .logo {
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--primary);
+        }
+        .nav a {
+            transition: background 0.2s, color 0.2s;
+        }
+        .nav a.active,
+        .nav a:hover {
+            background: var(--bg);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .logout-btn {
+            transition: background 0.2s, color 0.2s, border-color 0.2s;
+            border: 2px solid #ef4444;
+        }
+        .logout-btn:hover {
+            background-color: #fecaca;
+        }
+        /* Modal styles */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        /* Toast Notification styles */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(150%);
+            background-color: var(--text);
+            color: var(--white);
+            padding: 12px 20px;
+            border-radius: var(--radius);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease-in-out;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+        .toast.success {
+            background-color: #22c55e;
+        }
+        .toast.error {
+            background-color: #ef4444;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 flex min-h-screen">
+<aside class="sidebar p-6 flex flex-col gap-6">
+    <div class="logo">EmployeeConnect</div>
+    <nav class="nav flex flex-col gap-3">
+        <a href="admin-dashboard.html" class="flex items-center gap-3 p-3 rounded-xl text-gray-500">
+            <i class="fas fa-tachometer-alt fa-fw"></i> Admin Dashboard
+        </a>
+        <a href="employees.html" class="flex items-center gap-3 p-3 rounded-xl text-gray-500">
+            <i class="fas fa-users fa-fw"></i> Employees
+        </a>
+        <a href="department.html" class="active flex items-center gap-3 p-3 rounded-xl text-gray-500">
+            <i class="fas fa-building fa-fw"></i> Departments
+        </a>
+        <a href="search.html" class="flex items-center gap-3 p-3 rounded-xl text-gray-500">
+            <i class="fas fa-search fa-fw"></i> Search & Filter
+        </a>
+        <a href="admin-portal.html" class="flex items-center gap-3 p-3 rounded-xl text-gray-500">
+            <i class="fas fa-user-circle fa-fw"></i> My Profile
+        </a>
+    </nav>
+    <button
+            id="logout-btn"
+            class="logout-btn mt-auto w-full flex items-center justify-center gap-3 p-3 rounded-xl font-semibold text-red-500"
+    >
+        <i class="fa-solid fa-right-from-bracket"></i>
+        Logout
+    </button>
+</aside>
+
+<main class="flex-1 p-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold">Department Management</h1>
+        <button
+                id="add-btn"
+                class="bg-blue-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 font-medium hover:bg-blue-700 transition"
+        >
+            <i class="fas fa-plus"></i> Add Department
+        </button>
+    </div>
+
+    <div class="bg-white rounded-lg p-6 shadow-sm overflow-x-auto">
+        <table class="w-full text-left table-auto">
+            <thead>
+            <tr class="bg-gray-100 border-b border-gray-200">
+                <th class="p-4 rounded-tl-lg">Department Name</th>
+                <th class="p-4">Code</th>
+                <th class="p-4">Description</th>
+                <th class="p-4">Employee Count</th>
+                <th class="p-4 rounded-tr-lg">Actions</th>
+            </tr>
+            </thead>
+            <tbody id="department-table-body">
+            <!-- Department rows will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+</main>
+
+<!-- Modals -->
+<div
+        id="add-modal"
+        class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"
+>
+    <div
+            class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg relative"
+    >
+        <button
+                class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600"
+        >
+            &times;
+        </button>
+        <h3 class="text-2xl font-semibold mb-6">Add New Department</h3>
+        <form id="add-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700"
+                >Department Name</label
+                >
+                <input
+                        type="text"
+                        id="add-name"
+                        required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700"
+                >Department Code</label
+                >
+                <input
+                        type="text"
+                        id="add-code"
+                        required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700"
+                >Description</label
+                >
+                <textarea
+                        id="add-description"
+                        rows="3"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                ></textarea>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button
+                        type="button"
+                        class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition"
+                >
+                    Cancel
+                </button>
+                <button
+                        type="submit"
+                        class="submit-btn bg-blue-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-blue-700 transition flex items-center justify-center w-36"
+                >
+                    <span class="btn-text">Add Department</span>
+                    <i class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div
+        id="update-modal"
+        class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"
+>
+    <div
+            class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg relative"
+    >
+        <button
+                class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600"
+        >
+            &times;
+        </button>
+        <h3 class="text-2xl font-semibold mb-6">Update Department</h3>
+        <form id="update-form" class="space-y-4">
+            <input type="hidden" id="update-id" />
+            <div>
+                <label class="block text-sm font-medium text-gray-700"
+                >Department Name</label
+                >
+                <input
+                        type="text"
+                        id="update-name"
+                        required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700"
+                >Department Code</label
+                >
+                <input
+                        type="text"
+                        id="update-code"
+                        required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700"
+                >Description</label
+                >
+                <textarea
+                        id="update-description"
+                        rows="3"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                ></textarea>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button
+                        type="button"
+                        class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition"
+                >
+                    Cancel
+                </button>
+                <button
+                        type="submit"
+                        class="submit-btn bg-blue-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-blue-700 transition flex items-center justify-center w-40"
+                >
+                    <span class="btn-text">Update Department</span>
+                    <i class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div
+        id="delete-modal"
+        class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"
+>
+    <div
+            class="modal-content max-w-sm text-center bg-white p-8 rounded-lg shadow-xl relative"
+    >
+        <button
+                class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600"
+        >
+            &times;
+        </button>
+        <h3 class="text-xl font-semibold mb-2">Confirm Deletion</h3>
+        <p class="text-gray-600 mb-6">
+            Are you sure? This action cannot be undone.
+        </p>
+        <div class="flex justify-center gap-4">
+            <button
+                    id="confirm-delete-btn"
+                    class="submit-btn bg-red-500 text-white rounded-lg px-4 py-2 font-medium hover:bg-red-600 transition w-24 flex justify-center items-center"
+            >
+                <span class="btn-text">Delete</span>
+                <i class="fas fa-spinner fa-spin ml-2 hidden"></i>
+            </button>
+            <button
+                    class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition"
+            >
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification Placeholder -->
+<div id="toast" class="toast">
+    <span id="toast-icon"></span>
+    <span id="toast-message"></span>
+</div>
+
+<script>
+    const API_BASE_URL = "http://localhost:8080/api";
+
+    // --- Toast Notification Logic ---
+    const toast = {
+        element: document.getElementById("toast"),
+        message: document.getElementById("toast-message"),
+        icon: document.getElementById("toast-icon"),
+        show(message, isSuccess = true) {
+            this.message.textContent = message;
+            this.element.className = "toast show";
+            if (isSuccess) {
+                this.element.classList.add("success");
+                this.icon.innerHTML = '<i class="fas fa-check-circle"></i>';
+            } else {
+                this.element.classList.add("error");
+                this.icon.innerHTML = '<i class="fas fa-times-circle"></i>';
+            }
+            setTimeout(() => {
+                this.element.classList.remove("show");
+            }, 3000);
+        },
+    };
+
+    // --- App Initialization ---
+    document.addEventListener("DOMContentLoaded", async () => {
+        await initializePage();
+    });
+
+    async function initializePage() {
+        if (!sessionStorage.getItem("loggedInAdmin")) {
+            toast.show("You are not logged in. Redirecting...", false);
+            setTimeout(() => (window.location.href = "admin-login.html"), 1500);
+            return;
+        }
+        await fetchAndRenderDepartments();
+    }
+
+    // --- API & Rendering Logic ---
+    async function fetchAndRenderDepartments() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/departments/all`);
+            if (!response.ok)
+                throw new Error(`HTTP error! status: ${response.status}`);
+            const departments = await response.json();
+            renderDepartments(departments);
+        } catch (error) {
+            console.error("Error fetching departments:", error);
+            document.getElementById(
+                "department-table-body"
+            ).innerHTML = `<tr><td colspan="5" class="text-center p-4 text-red-500">Could not load department data.</td></tr>`;
+        }
+    }
+
+    function renderDepartments(departments) {
+        const departmentTableBody = document.getElementById(
+            "department-table-body"
+        );
+        departmentTableBody.innerHTML = "";
+        if (!departments || departments.length === 0) {
+            departmentTableBody.innerHTML = `<tr><td colspan="5" class="text-center p-4 text-gray-500">No departments found.</td></tr>`;
+            return;
+        }
+
+        departments.forEach((dept) => {
+            const row = `
+                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition">
+                        <td class="p-4 font-medium">${dept.name}</td>
+                        <td class="p-4 font-mono text-sm">${dept.code}</td>
+                        <td class="p-4 text-gray-600">${
+                dept.description || ""
+            }</td>
+                        <td class="p-4">${dept.employeeCount || 0}</td>
+                        <td class="p-4">
+                            <button class="text-blue-600 hover:text-blue-800 mr-4" onclick="handleEdit(${
+                dept.id
+            })"><i class="fas fa-pen"></i> Edit</button>
+                            <button class="text-red-500 hover:text-red-700" onclick="handleDelete(${
+                dept.id
+            })"><i class="fas fa-trash"></i> Delete</button>
+                        </td>
+                    </tr>
+                `;
+            departmentTableBody.innerHTML += row;
+        });
+    }
+
+    // --- UI State & Event Handlers ---
+    function setLoadingState(form, isLoading) {
+        const button = form.querySelector(".submit-btn");
+        if (!button) return;
+        const btnText = button.querySelector(".btn-text");
+        const spinner = button.querySelector("i");
+        if (isLoading) {
+            button.disabled = true;
+            btnText.classList.add("hidden");
+            spinner.classList.remove("hidden");
+        } else {
+            button.disabled = false;
+            btnText.classList.remove("hidden");
+            spinner.classList.add("hidden");
+        }
+    }
+
+    function openModal(id) {
+        document.getElementById(id).style.display = "flex";
+    }
+    function closeModal(id) {
+        document.getElementById(id).style.display = "none";
+    }
+
+    // --- Modal & Form Event Listeners ---
+    document
+        .getElementById("add-btn")
+        .addEventListener("click", () => openModal("add-modal"));
+
+    document
+        .querySelectorAll(".modal-close, .modal-cancel-btn")
+        .forEach((btn) => {
+            btn.addEventListener("click", () => {
+                closeModal("add-modal");
+                closeModal("update-modal");
+                closeModal("delete-modal");
+            });
+        });
+
+    document
+        .getElementById("add-form")
+        .addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            setLoadingState(form, true);
+
+            const newDepartment = {
+                name: document.getElementById("add-name").value,
+                code: document.getElementById("add-code").value,
+                description: document.getElementById("add-description").value,
+            };
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/departments`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(newDepartment),
+                });
+                if (response.ok) {
+                    await fetchAndRenderDepartments();
+                    closeModal("add-modal");
+                    toast.show("Department added successfully!");
+                    form.reset();
+                } else {
+                    const errorData = await response.json();
+                    const errorMsg =
+                        errorData.message || JSON.stringify(errorData);
+                    toast.show(`Failed to add department: ${errorMsg}`, false);
+                }
+            } catch (error) {
+                console.error("Error adding department:", error);
+                toast.show("An error occurred. See console for details.", false);
+            } finally {
+                setLoadingState(form, false);
+            }
+        });
+
+    async function handleEdit(id) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/departments/${id}`);
+            if (!response.ok)
+                throw new Error("Failed to fetch department details");
+            const dept = await response.json();
+
+            document.getElementById("update-id").value = dept.id;
+            document.getElementById("update-name").value = dept.name;
+            document.getElementById("update-code").value = dept.code;
+            document.getElementById("update-description").value =
+                dept.description || "";
+
+            openModal("update-modal");
+        } catch (error) {
+            console.error("Error fetching department for update:", error);
+            toast.show("Could not load department details for editing.", false);
+        }
+    }
+
+    document
+        .getElementById("update-form")
+        .addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            setLoadingState(form, true);
+            const departmentId = document.getElementById("update-id").value;
+
+            const updatedDepartment = {
+                name: document.getElementById("update-name").value,
+                code: document.getElementById("update-code").value,
+                description: document.getElementById("update-description").value,
+            };
+
+            try {
+                const response = await fetch(
+                    `${API_BASE_URL}/departments/${departmentId}`,
+                    {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(updatedDepartment),
+                    }
+                );
+                if (response.ok) {
+                    await fetchAndRenderDepartments();
+                    closeModal("update-modal");
+                    toast.show("Department updated successfully!");
+                } else {
+                    const errorData = await response.json();
+                    const errorMsg =
+                        errorData.message || JSON.stringify(errorData);
+                    toast.show(`Failed to update department: ${errorMsg}`, false);
+                }
+            } catch (error) {
+                console.error("Error updating department:", error);
+                toast.show("An error occurred. See console for details.", false);
+            } finally {
+                setLoadingState(form, false);
+            }
+        });
+
+    let departmentIdToDelete = null;
+    function handleDelete(id) {
+        departmentIdToDelete = id;
+        openModal("delete-modal");
+    }
+
+    document
+        .getElementById("confirm-delete-btn")
+        .addEventListener("click", async () => {
+            if (!departmentIdToDelete) return;
+
+            const form = document.getElementById("delete-modal");
+            setLoadingState(form, true);
+
+            try {
+                const response = await fetch(
+                    `${API_BASE_URL}/departments/${departmentIdToDelete}`,
+                    {
+                        method: "DELETE",
+                    }
+                );
+                if (response.ok) {
+                    await fetchAndRenderDepartments();
+                    closeModal("delete-modal");
+                    toast.show(`Department deleted successfully.`);
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(
+                        errorData.message || "Failed to delete department."
+                    );
+                }
+            } catch (error) {
+                console.error("Error deleting department:", error);
+                toast.show(error.message, false);
+            } finally {
+                setLoadingState(form, false);
+                departmentIdToDelete = null;
+            }
+        });
+
+    document.getElementById("logout-btn").addEventListener("click", () => {
+        sessionStorage.removeItem("loggedInAdmin");
+        window.location.href = "index.html";
+    });
+</script>
+</body>
+</html>

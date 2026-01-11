@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EmployeeConnect | Admin Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f9fafb;
+            --white: #ffffff;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --radius: 12px;
+        }
+        body { font-family: "Inter", system-ui, sans-serif; }
+        .sidebar { width: 240px; background: var(--white); border-right: 1px solid #e5e7eb; }
+        .logo { font-weight: 700; font-size: 1.25rem; color: var(--primary); }
+        .nav a { transition: background 0.2s, color 0.2s; cursor: pointer; }
+        .nav a.active, .nav a:hover { background: var(--bg); color: var(--primary); font-weight: 600; }
+        .logout-btn { transition: background 0.2s, color 0.2s, border-color 0.2s; border: 2px solid #ef4444; }
+        .logout-btn:hover { background-color: #fecaca; }
+        .modal-backdrop { background-color: rgba(0, 0, 0, 0.5); z-index: 999; }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(150%); background-color: var(--text); color: var(--white); padding: 12px 20px; border-radius: var(--radius); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); transition: transform 0.3s ease-in-out; z-index: 1000; display: flex; align-items: center; gap: 10px; }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        .toast.success { background-color: #22c55e; }
+        .toast.error { background-color: #ef4444; }
+        .salary-card, .card { background: var(--white); border: 1px solid #e5e7eb; border-radius: var(--radius); padding: 1.5rem; transition: transform 0.2s, box-shadow 0.2s; }
+        .salary-card { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03); }
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; }
+        .card { display: flex; flex-direction: column; gap: 0.5rem; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0,0,0,0.08); }
+        .card-title { color: var(--text-muted); }
+        .card-value { font-size: 1.75rem; font-weight: 700; }
+        .profile-image-container { position: relative; width: 96px; height: 96px; }
+        .profile-image-upload-button { position: absolute; bottom: 0; right: 0; background-color: var(--primary); color: white; width: 32px; height: 32px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px solid white; transition: background-color 0.2s; z-index: 2; }
+        .profile-image-upload-button:hover { background-color: var(--primary-hover); }
+        #profile-image { z-index: 1; position: relative; }
+    </style>
+</head>
+<body class="bg-gray-50 flex min-h-screen">
+<aside class="sidebar p-6 flex flex-col gap-6">
+    <div class="logo">EmployeeConnect</div>
+    <nav class="nav flex flex-col gap-3">
+        <a class="nav-link flex items-center gap-3 p-3 rounded-xl text-gray-500" data-view="dashboard"><i class="fas fa-tachometer-alt fa-fw"></i> Admin Dashboard</a>
+        <a class="nav-link flex items-center gap-3 p-3 rounded-xl text-gray-500" data-view="employees"><i class="fas fa-users fa-fw"></i> Employees</a>
+        <a class="nav-link flex items-center gap-3 p-3 rounded-xl text-gray-500" data-view="departments"><i class="fas fa-building fa-fw"></i> Departments</a>
+        <a class="nav-link flex items-center gap-3 p-3 rounded-xl text-gray-500" data-view="search"><i class="fas fa-search fa-fw"></i> Search & Filter</a>
+        <a class="nav-link flex items-center gap-3 p-3 rounded-xl text-gray-500" data-view="profile"><i class="fas fa-user-circle fa-fw"></i> My Profile</a>
+        <a class="nav-link flex items-center gap-3 p-3 rounded-xl text-gray-500" data-view="admins"><i class="fas fa-user-shield fa-fw"></i> Admin Management</a>
+    </nav>
+    <button id="logout-btn" class="logout-btn mt-auto w-full flex items-center justify-center gap-3 p-3 rounded-xl font-semibold text-red-500"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+</aside>
+<main class="flex-1 p-8" id="content-container"></main>
+<div id="toast" class="toast"><span id="toast-icon"></span><span id="toast-message"></span></div>
+
+<script>
+    const API_BASE_URL = "http://localhost:8080/api";
+    let loggedInAdmin = null;
+    let adminSalaryStatements = [];
+
+    const toast = {
+        element: document.getElementById('toast'),
+        message: document.getElementById('toast-message'),
+        icon: document.getElementById('toast-icon'),
+        show(message, isSuccess = true) {
+            this.message.textContent = message;
+            this.element.className = 'toast show';
+            if (isSuccess) { this.element.classList.add('success'); this.icon.innerHTML = '<i class="fas fa-check-circle"></i>'; }
+            else { this.element.classList.add('error'); this.icon.innerHTML = '<i class="fas fa-times-circle"></i>'; }
+            setTimeout(() => { this.element.classList.remove('show'); }, 3000);
+        }
+    };
+
+    function setLoadingState(form, isLoading) {
+        const button = form.querySelector('.submit-btn');
+        if (!button) return;
+        const btnText = button.querySelector('.btn-text');
+        const spinner = button.querySelector('i.fa-spinner');
+        if (isLoading) { button.disabled = true; if(btnText) btnText.classList.add('hidden'); if(spinner) spinner.classList.remove('hidden'); }
+        else { button.disabled = false; if(btnText) btnText.classList.remove('hidden'); if(spinner) spinner.classList.add('hidden'); }
+    }
+
+    function openModal(id) {
+        const modal = document.getElementById(id);
+        if(modal) modal.style.display = "flex";
+    }
+    function closeModal(id) {
+        const modal = document.getElementById(id);
+        if(modal) modal.style.display = "none";
+    }
+
+    function debounce(func, delay) {
+        let timeout;
+        return function (...args) { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), delay); };
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/admins/me`);
+            if (!response.ok) { throw new Error("Not authenticated"); }
+            loggedInAdmin = await response.json();
+
+            setupNavigation();
+            const initialView = window.location.hash.substring(1) || "dashboard";
+            renderView(initialView);
+        } catch (error) {
+            console.error("Authentication check failed:", error);
+            window.location.href = "admin-login.html";
+        }
+    });
+
+    function setupNavigation() {
+        const navLinks = document.querySelectorAll(".nav-link");
+        navLinks.forEach(link => {
+            link.addEventListener("click", (e) => {
+                e.preventDefault();
+                const viewName = link.dataset.view;
+                window.history.pushState({view: viewName}, "", `#${viewName}`);
+                renderView(viewName);
+            });
+        });
+
+        window.onpopstate = (event) => {
+            const view = event.state ? event.state.view : (window.location.hash.substring(1) || "dashboard");
+            renderView(view);
+        };
+
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            toast.show("Logging out...");
+            window.location.href = '/logout';
+        });
+    }
+
+    function renderView(viewName) {
+        const contentContainer = document.getElementById("content-container");
+        contentContainer.innerHTML = `<div class="w-full h-full flex items-center justify-center"><i class="fas fa-spinner fa-spin text-4xl text-gray-400"></i></div>`;
+
+        document.querySelectorAll(".nav-link").forEach(link => {
+            link.classList.toggle("active", link.dataset.view === viewName);
+        });
+
+        switch (viewName) {
+            case 'dashboard': loadDashboardView(); break;
+            case 'employees': loadAndInitEmployeesView(); break;
+            case 'departments': loadAndInitDepartmentsView(); break;
+            case 'search': loadAndInitSearchView(); break;
+            case 'profile': loadProfileView(); break;
+            case 'admins': loadAndInitAdminsView(); break;
+            default: contentContainer.innerHTML = `<p class="text-center text-red-500">View not found.</p>`;
+        }
+    }
+
+    async function loadDashboardView() {
+        document.getElementById("content-container").innerHTML = `
+            <h1 class="text-3xl font-bold mb-6">Admin Dashboard</h1>
+            <div class="cards">
+                <div class="card"><div class="card-title">👥 Total Employees</div><div class="card-value" id="totalEmployees">...</div></div>
+                <div class="card"><div class="card-title">✅ Active Employees</div><div class="card-value" id="activeEmployees">...</div></div>
+                <div class="card"><div class="card-title">❌ Resigned Employees</div><div class="card-value" id="resignedEmployees">...</div></div>
+                <div class="card"><div class="card-title">🏢 Departments</div><div class="card-value" id="departments">...</div></div>
+            </div>`;
+        try {
+            const response = await fetch(`${API_BASE_URL}/dashboard/stats`);
+            if (!response.ok) throw new Error('Failed to load dashboard stats.');
+            const stats = await response.json();
+            Object.keys(stats).forEach(key => {
+                const el = document.getElementById(key);
+                if (el) el.textContent = stats[key].toLocaleString();
+            });
+        } catch (error) { console.error(error); toast.show(error.message, false); }
+    }
+
+    async function loadAndInitEmployeesView() {
+        document.getElementById("content-container").innerHTML = `
+            <div class="flex justify-between items-center mb-6"><h1 class="text-3xl font-bold">Employee Management</h1><div class="flex gap-2"><button id="add-btn" class="bg-blue-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 font-medium hover:bg-blue-700 transition"><i class="fas fa-plus"></i> Add Employee</button><button id="update-btn" disabled class="bg-gray-200 text-gray-400 rounded-lg px-4 py-2 flex items-center gap-2 font-medium transition cursor-not-allowed"><i class="fas fa-pen"></i> Update</button><button id="delete-btn" disabled class="bg-gray-200 text-gray-400 rounded-lg px-4 py-2 flex items-center gap-2 font-medium transition cursor-not-allowed"><i class="fas fa-trash"></i> Delete</button></div></div>
+            <div class="bg-white rounded-lg p-6 shadow-sm overflow-x-auto"><table class="w-full text-left table-auto"><thead><tr class="bg-gray-100 border-b border-gray-200"><th class="p-4 w-12 rounded-tl-lg"><input type="checkbox" id="select-all-checkbox" class="form-checkbox h-5 w-5 rounded text-blue-600 focus:ring-blue-500"/></th><th class="p-4">Employee ID</th><th class="p-4">Full Name</th><th class="p-4">Role</th><th class="p-4">Department</th><th class="p-4">Salary</th><th class="p-4 rounded-tr-lg">Status</th></tr></thead><tbody id="employee-table-body"></tbody></table></div>
+            <div id="add-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg relative"><button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button><h3 class="text-2xl font-semibold mb-6">Add New Employee</h3><form id="add-form" class="space-y-4"><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700">First Name</label><input type="text" id="add-first-name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Last Name</label><input type="text" id="add-last-name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div></div><div><label class="block text-sm font-medium text-gray-700">Employee ID</label><input type="text" id="add-employee-id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Role</label><input type="text" id="add-role" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Department</label><select id="add-department" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></select></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700">Salary (USD)</label><input type="number" step="0.01" id="add-salary" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Experience (Years)</label><input type="number" id="add-experience-years" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div></div><div><label class="block text-sm font-medium text-gray-700">Joining Date</label><input type="date" id="add-joining-date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div class="flex items-center"><input type="checkbox" id="add-currently-working" checked class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><label for="add-currently-working" class="ml-2 block text-sm text-gray-900">Currently Working</label></div><div class="flex justify-end gap-2 mt-6"><button type="button" class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Cancel</button><button type="submit" class="submit-btn bg-blue-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-blue-700 transition flex items-center justify-center w-36"><span class="btn-text">Add Employee</span><i class="fas fa-spinner fa-spin ml-2 hidden"></i></button></div></form></div></div>
+            <div id="update-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg relative"><button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button><h3 class="text-2xl font-semibold mb-6">Update Employee</h3><form id="update-form" class="space-y-4"><input type="hidden" id="update-id" /><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700">First Name</label><input type="text" id="update-first-name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Last Name</label><input type="text" id="update-last-name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div></div><div><label class="block text-sm font-medium text-gray-700">Employee ID</label><input type="text" id="update-employee-id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Role</label><input type="text" id="update-role" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Department</label><select id="update-department" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></select></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700">Salary (USD)</label><input type="number" step="0.01" id="update-salary" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Experience (Years)</label><input type="number" id="update-experience-years" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700">Joining Date</label><input type="date" id="update-joining-date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Relieving Date</label><input type="date" id="update-relieving-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div></div><div class="flex items-center"><input type="checkbox" id="update-currently-working" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><label for="update-currently-working" class="ml-2 block text-sm text-gray-900">Currently Working</label></div><div class="flex justify-end gap-2 mt-6"><button type="button" class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Cancel</button><button type="submit" class="submit-btn bg-blue-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-blue-700 transition flex items-center justify-center w-40"><span class="btn-text">Update Employee</span><i class="fas fa-spinner fa-spin ml-2 hidden"></i></button></div></form></div></div>
+            <div id="delete-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"><div class="modal-content max-w-sm text-center bg-white p-8 rounded-lg shadow-xl relative"><button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button><h3 class="text-xl font-semibold mb-2">Confirm Deletion</h3><p class="text-gray-600 mb-6">Are you sure you want to deactivate the selected employee(s)?</p><div class="flex justify-center gap-4"><button id="confirm-delete-btn" type="button" class="submit-btn bg-red-500 text-white rounded-lg px-4 py-2 font-medium hover:bg-red-600 transition w-24 flex justify-center items-center"><span class="btn-text">Delete</span><i class="fas fa-spinner fa-spin ml-2 hidden"></i></button><button type="button" class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Cancel</button></div></div></div>
+        `;
+        await initializeEmployeesLogic();
+    }
+
+    async function initializeEmployeesLogic() {
+        async function fetchAndRenderEmployees() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/employees/all`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const employees = await response.json();
+                renderEmployees(employees);
+            } catch (error) {
+                console.error("Error fetching employees:", error);
+                document.getElementById("employee-table-body").innerHTML = `<tr><td colspan="7" class="text-center p-4 text-red-500">Could not load employee data.</td></tr>`;
+            }
+        }
+
+        function renderEmployees(employees) {
+            const employeeTableBody = document.getElementById("employee-table-body");
+            employeeTableBody.innerHTML = "";
+            if (!employees || employees.length === 0) {
+                employeeTableBody.innerHTML = `<tr><td colspan="7" class="text-center p-4 text-gray-500">No employees found.</td></tr>`;
+                return;
+            }
+            employees.forEach((employee) => {
+                const statusClass = employee.currentlyWorking ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
+                const row = `<tr class="border-b border-gray-200 hover:bg-gray-50 transition"><td class="p-4"><input type="checkbox" data-id="${employee.id}" class="employee-checkbox form-checkbox h-5 w-5 rounded text-blue-600 focus:ring-blue-500"/></td><td class="p-4 font-mono text-sm">${employee.employeeId}</td><td class="p-4 font-medium">${employee.fullName}</td><td class="p-4">${employee.role}</td><td class="p-4">${employee.departmentName || 'N/A'}</td><td class="p-4">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(employee.salary)}</td><td class="p-4"><span class="${statusClass} text-xs font-medium px-2.5 py-0.5 rounded-full">${employee.currentlyWorking ? 'Active' : 'Inactive'}</span></td></tr>`;
+                employeeTableBody.innerHTML += row;
+            });
+            attachCheckboxListeners();
+            updateButtonStates();
+        }
+
+        async function populateDepartmentDropdowns() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/departments/all`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const departments = await response.json();
+                const addSelect = document.getElementById('add-department');
+                const updateSelect = document.getElementById('update-department');
+                if(!addSelect || !updateSelect) return;
+                addSelect.innerHTML = '<option value="">Select Department</option>';
+                updateSelect.innerHTML = '<option value="">Select Department</option>';
+                departments.forEach(dept => {
+                    const option = `<option value="${dept.id}">${dept.name}</option>`;
+                    addSelect.innerHTML += option;
+                    updateSelect.innerHTML += option;
+                });
+            } catch (error) {
+                console.error("Error populating departments:", error);
+                toast.show("Could not load departments.", false);
+            }
+        }
+
+        function getSelectedEmployeeIds() { return Array.from(document.querySelectorAll(".employee-checkbox:checked")).map(cb => parseInt(cb.dataset.id)); }
+
+        function updateButtonStates() {
+            const selectedCount = getSelectedEmployeeIds().length;
+            const updateBtn = document.getElementById('update-btn');
+            const deleteBtn = document.getElementById('delete-btn');
+            const inactiveClasses = ["bg-gray-200", "text-gray-400", "cursor-not-allowed"];
+            const updateActiveClasses = ["bg-blue-600", "text-white", "hover:bg-blue-700"];
+            const deleteActiveClasses = ["bg-red-500", "text-white", "hover:bg-red-600"];
+            updateBtn.disabled = true; updateBtn.classList.add(...inactiveClasses); updateBtn.classList.remove(...updateActiveClasses);
+            deleteBtn.disabled = true; deleteBtn.classList.add(...inactiveClasses); deleteBtn.classList.remove(...deleteActiveClasses);
+            if (selectedCount === 1) { updateBtn.disabled = false; updateBtn.classList.remove(...inactiveClasses); updateBtn.classList.add(...updateActiveClasses); }
+            if (selectedCount >= 1) { deleteBtn.disabled = false; deleteBtn.classList.remove(...inactiveClasses); deleteBtn.classList.add(...deleteActiveClasses); }
+        }
+
+        function attachCheckboxListeners() {
+            document.querySelectorAll(".employee-checkbox").forEach(cb => cb.addEventListener("change", updateButtonStates));
+            document.getElementById("select-all-checkbox").addEventListener("change", (e) => {
+                document.querySelectorAll(".employee-checkbox").forEach(cb => cb.checked = e.target.checked);
+                updateButtonStates();
+            });
+        }
+
+        document.getElementById("add-btn").addEventListener("click", () => openModal("add-modal"));
+        document.getElementById("delete-btn").addEventListener("click", () => openModal("delete-modal"));
+        document.querySelectorAll('.modal-close, .modal-cancel-btn').forEach(btn => btn.addEventListener('click', () => {
+            closeModal('add-modal'); closeModal('update-modal'); closeModal('delete-modal');
+        }));
+
+        document.getElementById("add-form").addEventListener("submit", async (e) => {
+            e.preventDefault(); const form = e.target; setLoadingState(form, true);
+            const newEmployee = { employeeId: document.getElementById("add-employee-id").value, firstName: document.getElementById("add-first-name").value, lastName: document.getElementById("add-last-name").value, role: document.getElementById("add-role").value, salary: parseFloat(document.getElementById("add-salary").value), joiningDate: document.getElementById("add-joining-date").value, currentlyWorking: document.getElementById("add-currently-working").checked, experienceYears: parseInt(document.getElementById("add-experience-years").value), departmentId: parseInt(document.getElementById("add-department").value) };
+            try {
+                const response = await fetch(`${API_BASE_URL}/employees`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newEmployee) });
+                if (response.ok) { await fetchAndRenderEmployees(); closeModal("add-modal"); toast.show("Employee added successfully!"); form.reset(); }
+                else { const errorData = await response.json(); const errorMsg = errorData.errors ? errorData.errors[0].message : JSON.stringify(errorData); toast.show(`Failed to add employee: ${errorMsg}`, false); }
+            } catch (error) { console.error("Error adding employee:", error); toast.show("An error occurred. See console for details.", false); }
+            finally { setLoadingState(form, false); }
+        });
+
+        document.getElementById("update-btn").addEventListener("click", async () => {
+            const selectedId = getSelectedEmployeeIds()[0]; if (!selectedId) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/employees/${selectedId}`);
+                if (!response.ok) throw new Error('Failed to fetch employee details');
+                const emp = await response.json();
+                document.getElementById("update-id").value = emp.id; document.getElementById("update-employee-id").value = emp.employeeId; document.getElementById("update-first-name").value = emp.firstName; document.getElementById("update-last-name").value = emp.lastName; document.getElementById("update-role").value = emp.role; document.getElementById("update-salary").value = emp.salary; document.getElementById("update-experience-years").value = emp.experienceYears; document.getElementById("update-joining-date").value = emp.joiningDate; document.getElementById("update-relieving-date").value = emp.relievingDate || ''; document.getElementById("update-currently-working").checked = emp.currentlyWorking; document.getElementById("update-department").value = emp.departmentId;
+                openModal("update-modal");
+            } catch (error) { console.error("Error fetching employee for update:", error); toast.show("Could not load employee details for editing.", false); }
+        });
+
+        document.getElementById("update-form").addEventListener("submit", async (e) => {
+            e.preventDefault(); const form = e.target; setLoadingState(form, true);
+            const employeeId = document.getElementById("update-id").value;
+            const updatedEmployee = { employeeId: document.getElementById("update-employee-id").value, firstName: document.getElementById("update-first-name").value, lastName: document.getElementById("update-last-name").value, role: document.getElementById("update-role").value, salary: parseFloat(document.getElementById("update-salary").value), joiningDate: document.getElementById("update-joining-date").value, relievingDate: document.getElementById("update-relieving-date").value || null, currentlyWorking: document.getElementById("update-currently-working").checked, experienceYears: parseInt(document.getElementById("update-experience-years").value), departmentId: parseInt(document.getElementById("update-department").value) || null };
+            try {
+                const response = await fetch(`${API_BASE_URL}/employees/${employeeId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedEmployee) });
+                if (response.ok) { await fetchAndRenderEmployees(); closeModal("update-modal"); toast.show("Employee updated successfully!"); }
+                else { const errorData = await response.json(); const errorMsg = errorData.errors ? errorData.errors[0].message : JSON.stringify(errorData); toast.show(`Failed to update employee: ${errorMsg}`, false); }
+            } catch (error) { console.error("Error updating employee:", error); toast.show("An error occurred. See console for details.", false); }
+            finally { setLoadingState(form, false); }
+        });
+
+        document.getElementById("confirm-delete-btn").addEventListener("click", async () => {
+            const deleteModal = document.getElementById('delete-modal');
+            setLoadingState(deleteModal, true);
+            const selectedIds = getSelectedEmployeeIds();
+            if (selectedIds.length === 0) { setLoadingState(deleteModal, false); return; }
+            try {
+                const response = await fetch(`${API_BASE_URL}/employees/delete-batch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selectedIds) });
+                if (response.ok) { await fetchAndRenderEmployees(); closeModal("delete-modal"); toast.show(`Deactivated ${selectedIds.length} employee(s).`); }
+                else { const errorData = await response.json(); throw new Error(errorData.message || "Failed to deactivate employee(s)."); }
+            } catch (error) { console.error("Error deleting employees:", error); toast.show(error.message, false);
+            } finally { setLoadingState(deleteModal, false); updateButtonStates(); }
+        });
+
+        await populateDepartmentDropdowns();
+        await fetchAndRenderEmployees();
+    }
+
+    async function loadAndInitDepartmentsView() {
+        document.getElementById("content-container").innerHTML = `
+            <div class="flex justify-between items-center mb-6"><h1 class="text-3xl font-bold">Department Management</h1><button id="add-btn" class="bg-blue-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 font-medium hover:bg-blue-700 transition"><i class="fas fa-plus"></i> Add Department</button></div>
+            <div class="bg-white rounded-lg p-6 shadow-sm overflow-x-auto"><table class="w-full text-left table-auto"><thead><tr class="bg-gray-100 border-b border-gray-200"><th class="p-4 rounded-tl-lg">Department Name</th><th class="p-4">Code</th><th class="p-4">Description</th><th class="p-4">Employee Count</th><th class="p-4 rounded-tr-lg">Actions</th></tr></thead><tbody id="department-table-body"></tbody></table></div>
+            <div id="add-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg relative"><button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button><h3 class="text-2xl font-semibold mb-6">Add New Department</h3><form id="add-form" class="space-y-4"><div><label class="block text-sm font-medium text-gray-700">Department Name</label><input type="text" id="add-name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Department Code</label><input type="text" id="add-code" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Description</label><textarea id="add-description" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea></div><div class="flex justify-end gap-2 mt-6"><button type="button" class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Cancel</button><button type="submit" class="submit-btn bg-blue-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-blue-700 transition flex items-center justify-center w-36"><span class="btn-text">Add Department</span><i class="fas fa-spinner fa-spin ml-2 hidden"></i></button></div></form></div></div>
+            <div id="update-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg relative"><button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button><h3 class="text-2xl font-semibold mb-6">Update Department</h3><form id="update-form" class="space-y-4"><input type="hidden" id="update-id" /><div><label class="block text-sm font-medium text-gray-700">Department Name</label><input type="text" id="update-name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Department Code</label><input type="text" id="update-code" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" /></div><div><label class="block text-sm font-medium text-gray-700">Description</label><textarea id="update-description" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea></div><div class="flex justify-end gap-2 mt-6"><button type="button" class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Cancel</button><button type="submit" class="submit-btn bg-blue-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-blue-700 transition flex items-center justify-center w-40"><span class="btn-text">Update Department</span><i class="fas fa-spinner fa-spin ml-2 hidden"></i></button></div></form></div></div>
+            <div id="delete-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"><div class="modal-content max-w-sm text-center bg-white p-8 rounded-lg shadow-xl relative"><button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button><h3 class="text-xl font-semibold mb-2">Confirm Deletion</h3><p class="text-gray-600 mb-6">Are you sure? This action cannot be undone.</p><div class="flex justify-center gap-4"><button id="confirm-delete-btn" type="button" class="submit-btn bg-red-500 text-white rounded-lg px-4 py-2 font-medium hover:bg-red-600 transition w-24 flex justify-center items-center"><span class="btn-text">Delete</span><i class="fas fa-spinner fa-spin ml-2 hidden"></i></button><button type="button" class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Cancel</button></div></div></div>
+        `;
+        await initializeDepartmentsLogic();
+    }
+
+    async function initializeDepartmentsLogic() {
+        async function fetchAndRenderDepartments() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/departments/all`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const departments = await response.json();
+                renderDepartments(departments);
+            } catch (error) {
+                console.error("Error fetching departments:", error);
+                document.getElementById("department-table-body").innerHTML = `<tr><td colspan="5" class="text-center p-4 text-red-500">Could not load department data.</td></tr>`;
+            }
+        }
+
+        function renderDepartments(departments) {
+            const departmentTableBody = document.getElementById("department-table-body");
+            departmentTableBody.innerHTML = "";
+            if (!departments || departments.length === 0) {
+                departmentTableBody.innerHTML = `<tr><td colspan="5" class="text-center p-4 text-gray-500">No departments found.</td></tr>`;
+                return;
+            }
+            departments.forEach((dept) => {
+                const row = `<tr class="border-b border-gray-200 hover:bg-gray-50 transition"><td class="p-4 font-medium">${dept.name}</td><td class="p-4 font-mono text-sm">${dept.code}</td><td class="p-4 text-gray-600">${dept.description || ""}</td><td class="p-4">${dept.employeeCount || 0}</td><td class="p-4"><button class="text-blue-600 hover:text-blue-800 mr-4" onclick="window.spa.handleDepartmentEdit(${dept.id})"><i class="fas fa-pen"></i> Edit</button><button class="text-red-500 hover:text-red-700" onclick="window.spa.handleDepartmentDelete(${dept.id})"><i class="fas fa-trash"></i> Delete</button></td></tr>`;
+                departmentTableBody.innerHTML += row;
+            });
+        }
+
+        window.spa = window.spa || {};
+        window.spa.handleDepartmentEdit = async (id) => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/departments/${id}`);
+                if (!response.ok) throw new Error("Failed to fetch department details");
+                const dept = await response.json();
+                document.getElementById("update-id").value = dept.id; document.getElementById("update-name").value = dept.name; document.getElementById("update-code").value = dept.code; document.getElementById("update-description").value = dept.description || "";
+                openModal("update-modal");
+            } catch (error) { console.error("Error fetching department for update:", error); toast.show("Could not load department details for editing.", false); }
+        };
+
+        let departmentIdToDelete = null;
+        window.spa.handleDepartmentDelete = (id) => { departmentIdToDelete = id; openModal("delete-modal"); };
+
+        document.getElementById("add-btn").addEventListener("click", () => openModal("add-modal"));
+        document.querySelectorAll('.modal-close, .modal-cancel-btn').forEach(btn => btn.addEventListener('click', () => { closeModal('add-modal'); closeModal('update-modal'); closeModal('delete-modal'); }));
+
+        document.getElementById("add-form").addEventListener("submit", async (e) => {
+            e.preventDefault(); const form = e.target; setLoadingState(form, true);
+            const newDepartment = { name: document.getElementById("add-name").value, code: document.getElementById("add-code").value, description: document.getElementById("add-description").value };
+            try {
+                const response = await fetch(`${API_BASE_URL}/departments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newDepartment) });
+                if (response.ok) { await fetchAndRenderDepartments(); closeModal("add-modal"); toast.show("Department added successfully!"); form.reset(); }
+                else { const errorData = await response.json(); const errorMsg = errorData.message || JSON.stringify(errorData); toast.show(`Failed to add department: ${errorMsg}`, false); }
+            } catch (error) { console.error("Error adding department:", error); toast.show("An error occurred. See console for details.", false);
+            } finally { setLoadingState(form, false); }
+        });
+
+        document.getElementById("update-form").addEventListener("submit", async (e) => {
+            e.preventDefault(); const form = e.target; setLoadingState(form, true);
+            const departmentId = document.getElementById("update-id").value;
+            const updatedDepartment = { name: document.getElementById("update-name").value, code: document.getElementById("update-code").value, description: document.getElementById("update-description").value };
+            try {
+                const response = await fetch(`${API_BASE_URL}/departments/${departmentId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedDepartment) });
+                if (response.ok) { await fetchAndRenderDepartments(); closeModal("update-modal"); toast.show("Department updated successfully!"); }
+                else { const errorData = await response.json(); const errorMsg = errorData.message || JSON.stringify(errorData); toast.show(`Failed to update department: ${errorMsg}`, false); }
+            } catch (error) { console.error("Error updating department:", error); toast.show("An error occurred. See console for details.", false);
+            } finally { setLoadingState(form, false); }
+        });
+
+        document.getElementById("confirm-delete-btn").addEventListener("click", async () => {
+            if (!departmentIdToDelete) return;
+            const deleteModal = document.getElementById('delete-modal');
+            setLoadingState(deleteModal, true);
+            try {
+                const response = await fetch(`${API_BASE_URL}/departments/${departmentIdToDelete}`, { method: 'DELETE' });
+                if (response.ok) { await fetchAndRenderDepartments(); closeModal("delete-modal"); toast.show(`Department deleted successfully.`); }
+                else { const errorData = await response.json(); throw new Error(errorData.message || "Failed to delete department."); }
+            } catch (error) { console.error("Error deleting department:", error); toast.show(error.message, false);
+            } finally { setLoadingState(deleteModal, false); departmentIdToDelete = null; }
+        });
+
+        await fetchAndRenderDepartments();
+    }
+
+    async function loadAndInitSearchView() {
+        document.getElementById("content-container").innerHTML = `
+            <div class="flex justify-between items-center mb-6"><h1 class="text-3xl font-bold">Employee Search</h1></div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"><div class="relative md:col-span-1"><label class="block text-sm font-medium text-gray-700 mb-1">Search by Name or ID</label><input id="search-input" type="text" placeholder="e.g., John Doe or EMP001" class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"/><i class="fas fa-search absolute left-3 top-9 -translate-y-1/2 text-gray-400"></i></div><div><label for="filter-role" class="block text-sm font-medium text-gray-700 mb-1">Filter by Role</label><select id="filter-role" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"><option value="">All Roles</option></select></div><div><label for="filter-department" class="block text-sm font-medium text-gray-700 mb-1">Filter by Department</label><select id="filter-department" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"><option value="">All Departments</option></select></div></div>
+            <div class="bg-white rounded-lg p-6 shadow-sm overflow-x-auto"><table class="w-full text-left table-auto"><thead><tr class="bg-gray-100 border-b border-gray-200"><th class="p-4 rounded-tl-lg">Employee ID</th><th class="p-4">Full Name</th><th class="p-4">Role</th><th class="p-4">Department</th><th class="p-4">Salary</th><th class="p-4 rounded-tr-lg">Status</th></tr></thead><tbody id="employee-table-body"></tbody></table></div>
+        `;
+        await initializeSearchLogic();
+    }
+
+    async function initializeSearchLogic() {
+        async function performSearch() {
+            const searchInputVal = document.getElementById("search-input").value;
+            const role = document.getElementById("filter-role").value;
+            const department = document.getElementById("filter-department").value;
+            const employeeTableBody = document.getElementById("employee-table-body");
+            employeeTableBody.innerHTML = `<tr><td colspan="6" class="text-center p-4"><i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i></td></tr>`;
+            const params = new URLSearchParams();
+            if (searchInputVal) {
+                if (searchInputVal.toUpperCase().trim().startsWith('EMP')) { params.append("employeeId", searchInputVal.trim()); }
+                else { params.append("name", searchInputVal.trim()); }
+            }
+            if (role) params.append("role", role);
+            if (department) params.append("department", department);
+            try {
+                const response = await fetch(`${API_BASE_URL}/employees?${params.toString()}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const page = await response.json();
+                renderEmployees(page.content);
+            } catch (error) {
+                console.error("Error performing search:", error);
+                employeeTableBody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-red-500">Could not perform search.</td></tr>`;
+            }
+        }
+
+        function renderEmployees(employees) {
+            const employeeTableBody = document.getElementById("employee-table-body");
+            employeeTableBody.innerHTML = "";
+            if (!employees || employees.length === 0) {
+                employeeTableBody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-gray-500">No employees found matching your criteria.</td></tr>`;
+                return;
+            }
+            employees.forEach((employee) => {
+                const statusClass = employee.currentlyWorking ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
+                const row = `<tr class="border-b border-gray-200 hover:bg-gray-50 transition"><td class="p-4 font-mono text-sm">${employee.employeeId}</td><td class="p-4 font-medium">${employee.fullName}</td><td class="p-4">${employee.role}</td><td class="p-4">${employee.departmentName || "N/A"}</td><td class="p-4">${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(employee.salary)}</td><td class="p-4"><span class="${statusClass} text-xs font-medium px-2.5 py-0.5 rounded-full">${employee.currentlyWorking ? "Active" : "Inactive"}</span></td></tr>`;
+                employeeTableBody.innerHTML += row;
+            });
+        }
+
+        async function populateFilters() {
+            try {
+                const empResponse = await fetch(`${API_BASE_URL}/employees/all`);
+                const employees = await empResponse.json();
+                const uniqueRoles = [...new Set(employees.map(emp => emp.role))].sort();
+                const roleSelect = document.getElementById('filter-role');
+                uniqueRoles.forEach(role => { roleSelect.innerHTML += `<option value="${role}">${role}</option>`; });
+
+                const deptResponse = await fetch(`${API_BASE_URL}/departments/all`);
+                const departments = await deptResponse.json();
+                const departmentSelect = document.getElementById('filter-department');
+                departments.forEach(dept => { departmentSelect.innerHTML += `<option value="${dept.code}">${dept.name}</option>`; });
+            } catch (error) {
+                console.error("Error populating filters:", error);
+                toast.show("Could not load filter options.", false);
+            }
+        }
+
+        const searchInput = document.getElementById("search-input");
+        const filterRole = document.getElementById("filter-role");
+        const filterDepartment = document.getElementById("filter-department");
+        searchInput.addEventListener("input", debounce(performSearch, 300));
+        filterRole.addEventListener("change", performSearch);
+        filterDepartment.addEventListener("change", performSearch);
+
+        await populateFilters();
+        await performSearch();
+    }
+
+    async function loadProfileView() {
+        document.getElementById("content-container").innerHTML = `
+            <div class="flex justify-between items-center mb-6"><h1 class="text-3xl font-bold">My Profile</h1></div>
+            <div class="bg-white rounded-xl p-8 shadow-sm mb-6">
+                <div class="flex items-center">
+                    <div class="profile-image-container mr-6">
+                        <img id="profile-image" class="w-24 h-24 rounded-full bg-gray-200 object-cover border-4 border-white shadow-md"
+                             src="https://res.cloudinary.com/dghrgs7yn/image/upload/v1756895865/0db24acf-be3f-4091-9293-33239b06ac93_mteivz.png"
+                             alt="Profile Picture"/>
+                        <label for="image-upload" class="profile-image-upload-button hover:bg-blue-700 transition">
+                            <i class="fas fa-camera"></i>
+                            <input type="file" id="image-upload" class="hidden" accept="image/png, image/jpeg"/>
+                        </label>
+                    </div>
+                    <div>
+                        <h2 id="profile-name" class="text-2xl font-bold text-gray-800"></h2>
+                        <p id="profile-role" class="text-gray-500"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-6 shadow-sm"><h2 class="text-xl font-semibold mb-4">Salary Statements</h2><div id="salary-list" class="space-y-3"></div></div>
+             <div id="statement-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg relative"><button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button><div id="modal-body" class="space-y-4"></div><div class="flex justify-end gap-2 mt-6"><button id="download-statement-btn" class="bg-blue-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-blue-700 transition"><i class="fas fa-download mr-1"></i> Download</button><button class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Close</button></div></div></div>
+        `;
+        document.getElementById('profile-name').textContent = loggedInAdmin.fullName || 'N/A';
+        document.getElementById('profile-role').textContent = loggedInAdmin.role || 'N/A';
+        const profileImage = document.getElementById('profile-image');
+        if (loggedInAdmin.profileImageUrl) {
+            profileImage.src = loggedInAdmin.profileImageUrl;
+        }
+
+        document.getElementById('image-upload').addEventListener('change', handleProfileImageUpload);
+
+        document.querySelectorAll('#statement-modal .modal-close, #statement-modal .modal-cancel-btn').forEach(btn => {
+            btn.addEventListener('click', () => closeModal('statement-modal'));
+        });
+
+        await fetchAndRenderAdminSalaryHistory(loggedInAdmin.username);
+    }
+
+    async function handleProfileImageUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        toast.show("Uploading image...");
+        const formData = new FormData();
+        formData.append("file", file);
+        try {
+            const response = await fetch(`${API_BASE_URL}/admins/${loggedInAdmin.id}/profile-image`, { method: 'POST', body: formData });
+            if (!response.ok) { const errorText = await response.text(); throw new Error(errorText || "Image upload failed."); }
+            const updatedAdmin = await response.json();
+            document.getElementById('profile-image').src = updatedAdmin.profileImageUrl;
+            loggedInAdmin.profileImageUrl = updatedAdmin.profileImageUrl;
+            toast.show("Profile image updated successfully!");
+        } catch (error) { console.error(error); toast.show(error.message, false); }
+    }
+
+    async function fetchAndRenderAdminSalaryHistory(username) {
+        const salaryContainer = document.getElementById('salary-list');
+        salaryContainer.innerHTML = `<p class="text-gray-500 text-sm">Loading salary history...</p>`;
+        try {
+            const response = await fetch(`${API_BASE_URL}/admins/${username}/salary-history`);
+            if (response.status === 404) {
+                salaryContainer.innerHTML = `<p class="text-gray-500 text-sm">No salary history available.</p>`;
+                return;
+            }
+            if (!response.ok) throw new Error('Failed to load salary history.');
+
+            adminSalaryStatements = await response.json();
+            renderAdminSalaryList(adminSalaryStatements);
+        } catch (error) {
+            console.error("Admin Salary History Error:", error);
+            salaryContainer.innerHTML = `<p class="text-red-500 text-sm">Could not load salary history.</p>`;
+        }
+    }
+
+    function renderAdminSalaryList(statements) {
+        const salaryContainer = document.getElementById('salary-list');
+        salaryContainer.innerHTML = '';
+        if (!statements || statements.length === 0) {
+            salaryContainer.innerHTML = `<p class="text-gray-500 text-sm">No salary statements available.</p>`;
+            return;
+        }
+        statements.slice().reverse().forEach((stmt, index) => {
+            const originalIndex = statements.length - 1 - index;
+            const card = document.createElement('div');
+            card.className = 'salary-card';
+            card.innerHTML = `
+                  <span class="text-gray-900 font-medium">Statement for ${stmt.period}</span>
+                  <div class="flex gap-2">
+                      <button class="view-admin-stmt-btn bg-blue-100 text-blue-600 rounded-lg px-3 py-1 text-sm font-medium" data-index="${originalIndex}">View</button>
+                      <button class="download-admin-stmt-btn bg-gray-200 text-gray-700 rounded-lg px-3 py-1 text-sm font-medium" data-index="${originalIndex}">Download</button>
+                  </div>`;
+            salaryContainer.appendChild(card);
+        });
+
+        document.querySelectorAll('.view-admin-stmt-btn').forEach(btn => btn.addEventListener('click', (e) => openAdminStatementModal(e.currentTarget.dataset.index)));
+        document.querySelectorAll('.download-admin-stmt-btn').forEach(btn => btn.addEventListener('click', (e) => downloadAdminStatementFile(e.currentTarget.dataset.index)));
+    }
+
+    function openAdminStatementModal(index) {
+        const stmt = adminSalaryStatements[index];
+        if (!stmt) return;
+        const modalBody = document.getElementById("modal-body");
+        modalBody.innerHTML = `
+            <h5 class="text-lg font-semibold mb-2">Salary Statement for ${stmt.period}</h5>
+            <p class="text-sm text-gray-500">Admin: <strong class="text-gray-700">${loggedInAdmin.fullName}</strong> • Username: <strong class="text-gray-700">${loggedInAdmin.username}</strong></p>
+            <hr class="my-3 border-gray-200"/>
+            <div class="space-y-1">
+                <p><strong class="font-medium text-gray-800">Gross Pay:</strong> ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(stmt.salary)}</p>
+                <p><strong class="font-medium text-gray-800">Deductions:</strong> ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(0)}</p>
+                <p><strong class="font-medium text-gray-800">Net Pay:</strong> ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(stmt.salary)}</p>
+            </div>`;
+        document.getElementById("download-statement-btn").onclick = () => downloadAdminStatementFile(index);
+        openModal("statement-modal");
+    }
+
+    function downloadAdminStatementFile(index) {
+        const stmt = adminSalaryStatements[index];
+        if (!stmt) return;
+        const content = `
+Admin Salary Statement
+--------------------
+Admin: ${loggedInAdmin.fullName} (Username: ${loggedInAdmin.username})
+Period: ${stmt.period}
+Net Pay: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(stmt.salary)}
+`;
+        const blob = new Blob([content.trim()], { type: "text/plain" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${loggedInAdmin.username}_${stmt.period.replace(' ', '_')}_statement.txt`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
+    async function loadAndInitAdminsView() {
+        document.getElementById("content-container").innerHTML = `
+            <div class="flex justify-between items-center mb-6"><h1 class="text-3xl font-bold">Admin Management</h1><button id="add-admin-btn" class="bg-blue-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 font-medium hover:bg-blue-700 transition"><i class="fas fa-plus"></i> Add Admin</button></div>
+            <div class="bg-white rounded-lg p-6 shadow-sm overflow-x-auto"><table class="w-full text-left table-auto"><thead><tr class="bg-gray-100 border-b border-gray-200"><th class="p-4 rounded-tl-lg">Full Name</th><th class="p-4">Username</th><th class="p-4">Email</th><th class="p-4">Role</th><th class="p-4 rounded-tr-lg">Actions</th></tr></thead><tbody id="admin-table-body"></tbody></table></div>
+            <div id="add-admin-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg relative"><button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button><h3 class="text-2xl font-semibold mb-6">Add New Admin</h3><form id="add-admin-form" class="space-y-4"><div><label class="block text-sm font-medium text-gray-700">Full Name</label><input type="text" id="add-admin-fullname" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div><div><label class="block text-sm font-medium text-gray-700">Username</label><input type="text" id="add-admin-username" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div><div><label class="block text-sm font-medium text-gray-700">Email</label><input type="email" id="add-admin-email" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div><div><label class="block text-sm font-medium text-gray-700">Password</label><input type="password" id="add-admin-password" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700">Salary (USD)</label><input type="number" step="0.01" id="add-admin-salary" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div><div><label class="block text-sm font-medium text-gray-700">Experience (Years)</label><input type="number" id="add-admin-experience" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div></div><div><label class="block text-sm font-medium text-gray-700">Joining Date</label><input type="date" id="add-admin-joining-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div><div><label class="block text-sm font-medium text-gray-700">Department</label><select id="add-admin-department" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></select></div><div class="flex justify-end gap-2 mt-6"><button type="button" class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Cancel</button><button type="submit" class="submit-btn bg-blue-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-blue-700 transition flex items-center justify-center w-32"><span class="btn-text">Add Admin</span><i class="fas fa-spinner fa-spin ml-2 hidden"></i></button></div></form></div></div>
+            <div id="delete-admin-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"><div class="modal-content max-w-sm text-center bg-white p-8 rounded-lg shadow-xl relative"><button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button><h3 class="text-xl font-semibold mb-2">Confirm Deletion</h3><p class="text-gray-600 mb-6">Are you sure you want to delete this admin? This action cannot be undone.</p><div class="flex justify-center gap-4"><button id="confirm-delete-admin-btn" type="button" class="submit-btn bg-red-500 text-white rounded-lg px-4 py-2 font-medium hover:bg-red-600 transition w-24 flex justify-center items-center"><span class="btn-text">Delete</span><i class="fas fa-spinner fa-spin ml-2 hidden"></i></button><button type="button" class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Cancel</button></div></div></div>
+            <div id="update-admin-modal" class="modal-backdrop hidden fixed top-0 left-0 w-full h-full justify-center items-center"><div class="modal-content bg-white p-8 rounded-lg shadow-xl w-full max-w-lg relative"><button class="modal-close absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-600">&times;</button><h3 class="text-2xl font-semibold mb-6">Update Admin</h3><form id="update-admin-form" class="space-y-4"><input type="hidden" id="update-admin-id" /><div><label class="block text-sm font-medium text-gray-700">Full Name</label><input type="text" id="update-admin-fullname" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div><div><label class="block text-sm font-medium text-gray-700">Username</label><input type="text" id="update-admin-username" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div><div><label class="block text-sm font-medium text-gray-700">Email</label><input type="email" id="update-admin-email" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div><div><label class="block text-sm font-medium text-gray-700">New Password (optional)</label><input type="password" id="update-admin-password" placeholder="Leave blank to keep current password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" /></div><div class="flex justify-end gap-2 mt-6"><button type="button" class="modal-cancel-btn bg-gray-200 text-gray-700 rounded-lg px-4 py-2 font-medium hover:bg-gray-300 transition">Cancel</button><button type="submit" class="submit-btn bg-blue-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-blue-700 transition flex items-center justify-center w-36"><span class="btn-text">Update Admin</span><i class="fas fa-spinner fa-spin ml-2 hidden"></i></button></div></form></div></div>
+        `;
+        await initializeAdminsLogic();
+    }
+
+    async function initializeAdminsLogic() {
+        let adminIdToDelete = null;
+        async function fetchAndRenderAdmins() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/admins`);
+                if (!response.ok) throw new Error('Could not load admins.');
+                const admins = await response.json();
+                const adminTableBody = document.getElementById("admin-table-body");
+                adminTableBody.innerHTML = "";
+                admins.forEach(admin => {
+                    const isCurrentUser = loggedInAdmin.id === admin.id;
+                    const row = `
+                        <tr class="border-b border-gray-200">
+                            <td class="p-4 font-medium">${admin.fullName}</td><td class="p-4">${admin.username}</td><td class="p-4">${admin.email}</td><td class="p-4">${admin.role}</td>
+                            <td class="p-4">
+                                <button class="text-blue-600 hover:text-blue-800 mr-4 edit-admin-btn" data-id="${admin.id}"><i class="fas fa-pen"></i> Edit</button>
+                                <button class="text-red-500 hover:text-red-700 delete-admin-btn" data-id="${admin.id}" ${isCurrentUser ? 'disabled title="Cannot delete yourself"' : ''} ${isCurrentUser ? 'opacity-50 cursor-not-allowed' : ''}>
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </td>
+                        </tr>`;
+                    adminTableBody.innerHTML += row;
+                });
+
+                document.querySelectorAll('.edit-admin-btn').forEach(btn => btn.addEventListener('click', (e) => handleAdminEdit(e.currentTarget.dataset.id)));
+                document.querySelectorAll('.delete-admin-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        adminIdToDelete = e.currentTarget.dataset.id;
+                        openModal('delete-admin-modal');
+                    });
+                });
+            } catch(e) { console.error(e); toast.show(e.message, false); }
+        }
+
+        async function populateAdminDepartmentDropdown(selectElementId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/departments/all`);
+                if (!response.ok) throw new Error('Could not load departments');
+                const departments = await response.json();
+                const deptSelect = document.getElementById(selectElementId);
+                if(!deptSelect) return;
+                deptSelect.innerHTML = '<option value="">Select a department</option>';
+                departments.forEach(dept => {
+                    deptSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
+                });
+            } catch (error) {
+                console.error(error);
+                toast.show(error.message, false);
+            }
+        }
+
+        document.getElementById("add-admin-btn").addEventListener("click", async () => {
+            await populateAdminDepartmentDropdown('add-admin-department');
+            openModal("add-admin-modal");
+        });
+
+        document.querySelectorAll('.modal-close, .modal-cancel-btn').forEach(btn => btn.addEventListener('click', () => { closeModal('add-admin-modal'); closeModal('delete-admin-modal'); closeModal('update-admin-modal'); }));
+
+        document.getElementById("add-admin-form").addEventListener("submit", async (e) => {
+            e.preventDefault(); const form = e.target; setLoadingState(form, true);
+            const newAdmin = { fullName: document.getElementById("add-admin-fullname").value, username: document.getElementById("add-admin-username").value, email: document.getElementById("add-admin-email").value, password: document.getElementById("add-admin-password").value, role: 'ADMIN', salary: parseFloat(document.getElementById("add-admin-salary").value), joiningDate: document.getElementById("add-admin-joining-date").value || null, experienceYears: parseInt(document.getElementById("add-admin-experience").value) || null, department: { id: parseInt(document.getElementById("add-admin-department").value) || null } };
+            try {
+                const response = await fetch(`${API_BASE_URL}/admins`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newAdmin) });
+                if (response.status === 409) { throw new Error('Username already exists.'); }
+                if (!response.ok) { throw new Error('Failed to create admin.'); }
+                await fetchAndRenderAdmins(); closeModal('add-admin-modal'); toast.show('Admin created successfully!'); form.reset();
+            } catch (error) { console.error(error); toast.show(error.message, false);
+            } finally { setLoadingState(form, false); }
+        });
+
+        async function handleAdminEdit(id) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/admins`);
+                const admins = await response.json();
+                const adminToEdit = admins.find(a => a.id == id);
+                if (!adminToEdit) throw new Error('Admin not found');
+
+                document.getElementById("update-admin-id").value = adminToEdit.id;
+                document.getElementById("update-admin-fullname").value = adminToEdit.fullName;
+                document.getElementById("update-admin-username").value = adminToEdit.username;
+                document.getElementById("update-admin-email").value = adminToEdit.email;
+                document.getElementById("update-admin-password").value = "";
+                openModal("update-admin-modal");
+            } catch (error) {
+                console.error("Error fetching admin for edit:", error);
+                toast.show("Could not load admin data for editing.", false);
+            }
+        }
+
+        document.getElementById("update-admin-form").addEventListener("submit", async (e) => {
+            e.preventDefault(); const form = e.target; setLoadingState(form, true);
+            const adminId = document.getElementById("update-admin-id").value;
+            const updatedAdmin = {
+                fullName: document.getElementById("update-admin-fullname").value,
+                username: document.getElementById("update-admin-username").value,
+                email: document.getElementById("update-admin-email").value,
+                password: document.getElementById("update-admin-password").value,
+            };
+            try {
+                const response = await fetch(`${API_BASE_URL}/admins/${adminId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedAdmin) });
+                if (!response.ok) { throw new Error('Failed to update admin.'); }
+                await fetchAndRenderAdmins(); closeModal('update-admin-modal'); toast.show('Admin updated successfully!');
+            } catch (error) { console.error(error); toast.show(error.message, false);
+            } finally { setLoadingState(form, false); }
+        });
+
+        document.getElementById("confirm-delete-admin-btn").addEventListener("click", async () => {
+            if (!adminIdToDelete) return;
+            const deleteModal = document.getElementById('delete-admin-modal');
+            setLoadingState(deleteModal, true);
+            try {
+                const response = await fetch(`${API_BASE_URL}/admins/${adminIdToDelete}`, { method: 'DELETE' });
+                if (!response.ok) { throw new Error('Failed to delete admin.'); }
+                await fetchAndRenderAdmins(); closeModal('delete-admin-modal'); toast.show('Admin deleted successfully.');
+            } catch (error) { console.error(error); toast.show(error.message, false);
+            } finally { setLoadingState(deleteModal, false); adminIdToDelete = null; }
+        });
+
+        await fetchAndRenderAdmins();
+    }
+</script>
+</body>
+</html>

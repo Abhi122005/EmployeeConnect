@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EDMS | Select Login</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-light: #f9fafb;
+            --text-dark: #111827;
+            --text-muted: #6b7280;
+            --radius: 12px;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Inter", system-ui, sans-serif;
+            background: linear-gradient(135deg, #2563eb, #1e3a8a);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #splash {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            opacity: 0;
+            animation: fadeIn 5s forwards;
+        }
+        #splash .logo {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            animation: float 5s infinite ease-in-out;
+        }
+        #splash .tagline {
+            font-size: 1.2rem;
+            color: #d1d5db;
+            margin-top: 0.5rem;
+            letter-spacing: 2px;
+            animation: fadeIn 2.5s forwards, pulse 1.5s infinite ease-in-out;
+        }
+
+        #main {
+            display: none;
+            background: #fff;
+            border-radius: var(--radius);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            padding: 3rem 2.5rem;
+            text-align: center;
+            width: 100%;
+            max-width: 420px;
+        }
+        #main .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+        }
+        #main h1 {
+            font-size: 1.8rem;
+            margin-bottom: 2rem;
+        }
+        .buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        button {
+            flex: 1 1 150px;
+            padding: 1rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            background: var(--primary);
+            color: #fff;
+            transition: all 0.2s ease;
+        }
+        button:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+        }
+        .footer {
+            margin-top: 2rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+
+    </style>
+</head>
+<body>
+<!-- Splash screen -->
+<div id="splash">
+    <div class="logo">EmployeeConnect</div>
+    <div class="tagline">Your all-in-one HR solution</div>
+</div>
+
+<main id="main">
+    <div class="logo">EmployeeConnect</div>
+    <h1>Select Login Type</h1>
+    <div class="buttons">
+        <button id="employeeBtn">Employee Login</button>
+        <button id="adminBtn">Admin Login</button>
+    </div>
+    <div class="footer">© 2025 EmployeeConnect</div>
+</main>
+
+<script>
+    setTimeout(() => {
+        document.getElementById("splash").style.display = "none";
+        document.getElementById("main").style.display = "block";
+        document.body.style.background = "var(--bg-light)";
+        document.body.style.color = "var(--text-dark)";
+    }, 3000);
+
+    document.getElementById("employeeBtn").addEventListener("click", () => {
+        window.location.href = "employee-login.html";
+    });
+    document.getElementById("adminBtn").addEventListener("click", () => {
+        window.location.href = "admin-login.html";
+    });
+</script>
+</body>
+</html>

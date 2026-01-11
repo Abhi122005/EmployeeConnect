@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EmployeeConnect | Employee Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-light: #f9fafb;
+            --text-dark: #111827;
+            --text-muted: #6b7280;
+            --radius: 12px;
+        }
+        body { font-family: "Inter", system-ui, sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 flex items-center justify-center h-screen">
+<div class="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full">
+    <div class="text-2xl font-bold text-center text-[var(--primary)] mb-4">EmployeeConnect</div>
+    <h1 class="text-xl font-semibold text-center text-gray-800 mb-6">Employee Login</h1>
+
+    <!-- This form POSTs directly to the endpoint configured in Spring Security -->
+    <form action="/api/employees/login" method="POST">
+        <div class="mb-4">
+            <label for="username" class="block text-sm font-medium text-gray-600 mb-1">Employee ID</label>
+            <!-- Spring Security expects the username field to have name="username" -->
+            <input type="text" id="username" name="username" placeholder="Enter your Employee ID" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div class="mb-6">
+            <label for="password" class="block text-sm font-medium text-gray-600 mb-1">Password</label>
+            <!-- Spring Security expects the password field to have name="password" -->
+            <input type="password" id="password" name="password" placeholder="Enter your password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300">
+            Login
+        </button>
+        <div id="errorMsg" class="text-red-500 text-sm text-center mt-4"></div>
+    </form>
+    <div class="text-center mt-4 text-sm">
+        <a href="employee-forgot-password.html" class="text-blue-600 hover:underline">Forgot Password?</a>
+    </div>
+</div>
+<script>
+    // This script checks if the URL has "?error=true", which Spring Security adds on a failed login.
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('error')) {
+        document.getElementById('errorMsg').textContent = 'Invalid Employee ID or password.';
+    }
+</script>
+</body>
+</html>
+
+
