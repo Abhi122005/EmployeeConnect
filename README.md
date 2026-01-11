@@ -22,10 +22,7 @@ Build & Run (H2 in-memory, default)
 2. Run:
    java -jar target/employee-data-management-system-0.0.1-SNAPSHOT.jar
 
-3. Open application:
-   http://localhost:8080
-
-4. H2 Console:
+3. H2 Console:
    http://localhost:8080/h2-console
    JDBC URL: jdbc:h2:mem:edmsdb
    User: sa
